@@ -3,34 +3,33 @@ import matplotlib.pyplot as plt
 
 from benchmark_geometries import train_and_evaluate, GEOMETRIES
 
-GRID_SIZE = 4
-N_PIXELS = 4
+GRID_SIZE = 5
+N_PIXELS_LIST = [4, 5, 6]
 N_RANDOM = 100
 RANDOM_SEED = 7
 LAMBDA_COMPACTNESS = 0.15
 
 
-def random_geometry(grid_size=GRID_SIZE, n_pixels=N_PIXELS):
+def random_geometry(grid_size, n_pixels):
     all_positions = [(x, y) for x in range(grid_size) for y in range(grid_size)]
     chosen = np.random.choice(len(all_positions), size=n_pixels, replace=False)
     return np.array([all_positions[i] for i in chosen])
 
 
 def geometry_to_string(pixels):
-    pixels = set(map(tuple, pixels))
-    max_x = max(x for x, y in pixels)
-    max_y = max(y for x, y in pixels)
+    pixels_set = set(map(tuple, pixels))
+    max_x = max(x for x, y in pixels_set)
+    max_y = max(y for x, y in pixels_set)
 
     rows = []
     for y in range(max_y, -1, -1):
         row = ""
         for x in range(max_x + 1):
-            row += "□ " if (x, y) in pixels else ". "
+            row += "□ " if (x, y) in pixels_set else ". "
         rows.append(row.rstrip())
 
     return "\n".join(rows)
 
-# a few more helper functions
 
 def bounding_box_area(pixels):
     xs = pixels[:, 0]
@@ -42,81 +41,112 @@ def bounding_box_area(pixels):
     return width * height
 
 
-def compactness_score(mean_error, pixels):
+def compactness_score(mean_error, pixels, n_pixels):
     area = bounding_box_area(pixels)
-    return mean_error + LAMBDA_COMPACTNESS * (area - N_PIXELS)
+    return mean_error + LAMBDA_COMPACTNESS * (area - n_pixels)
+
+
+def evaluate_geometry(name, pixels, kind, n_pixels):
+    r = train_and_evaluate(name, pixels)
+
+    return {
+        "name": name,
+        "pixels": pixels,
+        "n_pixels": n_pixels,
+        "mean_error_deg": r["mean_error_deg"],
+        "area": bounding_box_area(pixels),
+        "score": compactness_score(r["mean_error_deg"], pixels, n_pixels),
+        "kind": kind,
+    }
+
 
 def main():
     np.random.seed(RANDOM_SEED)
 
-    results = []
+    all_results = []
 
-    print("Evaluating known geometries...")
-    for name, pixels in GEOMETRIES.items():
-        r = train_and_evaluate(name, pixels)
-        results.append({
-            "name": name,
-            "pixels": pixels,
-            "mean_error_deg": r["mean_error_deg"],
-            "area": bounding_box_area(pixels),
-            "score": compactness_score(r["mean_error_deg"], pixels),
-            "kind": "known",
-        })
+    for n_pixels in N_PIXELS_LIST:
+        print(f"\nEvaluating {n_pixels}-pixel geometries...")
 
-    print("Evaluating random geometries...")
-    for i in range(N_RANDOM):
-        pixels = random_geometry()
-        r = train_and_evaluate(f"random_{i}", pixels)
+        results = []
 
-        results.append({
-            "name": f"random_{i}",
-            "pixels": pixels,
-            "mean_error_deg": r["mean_error_deg"],
-            "area": bounding_box_area(pixels),
-            "score": compactness_score(r["mean_error_deg"], pixels),
-            "kind": "random",
-        })
+        if n_pixels == 4:
+            print("Evaluating known 4-pixel geometries...")
+            for name, pixels in GEOMETRIES.items():
+                results.append(evaluate_geometry(name, pixels, "known", n_pixels))
 
-    results = sorted(results, key=lambda x: x["score"])
+        print(f"Evaluating {N_RANDOM} random {n_pixels}-pixel geometries...")
+        for i in range(N_RANDOM):
+            pixels = random_geometry(GRID_SIZE, n_pixels)
+            results.append(
+                evaluate_geometry(
+                    f"random_{n_pixels}_{i}",
+                    pixels,
+                    "random",
+                    n_pixels,
+                )
+            )
 
-    print("\nTop 10 geometries")
-    print("-" * 50)
+        results = sorted(results, key=lambda x: x["score"])
+        all_results.extend(results)
 
-    for rank, r in enumerate(results[:10], start=1):
-        print(f"\n#{rank}: {r['name']} | {r['mean_error_deg']:.3f}° | {r['kind']}")
-        print(geometry_to_string(r["pixels"]))
+        print(f"\nTop 10 geometries for {n_pixels} pixels")
+        print("-" * 60)
 
-    known_ranks = {
-        r["name"]: idx + 1
-        for idx, r in enumerate(results)
-        if r["kind"] == "known"
-    }
+        for rank, r in enumerate(results[:10], start=1):
+            print(
+                f"\n#{rank}: {r['name']} | "
+                f"error={r['mean_error_deg']:.3f}° | "
+                f"area={r['area']} | "
+                f"score={r['score']:.3f} | "
+                f"{r['kind']}"
+            )
+            print(geometry_to_string(r["pixels"]))
 
-    print("\nKnown geometry ranks")
-    print("-" * 50)
-    for name in GEOMETRIES:
-        print(f"{name:<10}: rank {known_ranks[name]} / {len(results)}")
+        if n_pixels == 4:
+            known_ranks = {
+                r["name"]: idx + 1
+                for idx, r in enumerate(results)
+                if r["kind"] == "known"
+            }
 
-    errors = [r["mean_error_deg"] for r in results]
+            print("\nKnown geometry ranks")
+            print("-" * 60)
+            for name in GEOMETRIES:
+                print(f"{name:<10}: rank {known_ranks[name]} / {len(results)}")
+
+    print("\nBest geometry by pixel count")
+    print("-" * 60)
+
+    best_by_pixel_count = []
+
+    for n_pixels in N_PIXELS_LIST:
+        subset = [r for r in all_results if r["n_pixels"] == n_pixels]
+        best = min(subset, key=lambda x: x["score"])
+        best_by_pixel_count.append(best)
+
+        print(
+            f"{n_pixels} pixels: "
+            f"{best['name']} | "
+            f"error={best['mean_error_deg']:.3f}° | "
+            f"area={best['area']} | "
+            f"score={best['score']:.3f}"
+        )
 
     plt.figure(figsize=(8, 5))
-    plt.plot(range(1, len(errors) + 1), errors, marker="o", markersize=3)
-    plt.xlabel("Geometry rank")
-    plt.ylabel("Mean angular error (degrees)")
-    plt.title("Random 4-Pixel Geometry Search")
+    plt.plot(
+        [r["n_pixels"] for r in best_by_pixel_count],
+        [r["mean_error_deg"] for r in best_by_pixel_count],
+        marker="o",
+    )
+    plt.xlabel("Number of detector pixels")
+    plt.ylabel("Best mean angular error (degrees)")
+    plt.title("Best Error vs Number of Detector Pixels")
     plt.tight_layout()
-    plt.savefig("random_geometry_search.png", dpi=200)
+    plt.savefig("best_error_vs_pixels.png", dpi=200)
     plt.show()
 
-    print(
-        f"\n#{rank}: {r['name']} | "
-        f"error={r['mean_error_deg']:.3f}° | "
-        f"area={r['area']} | "
-        f"score={r['score']:.3f} | "
-        f"{r['kind']}"
-    )
-
-    print("\nSaved plot: random_geometry_search.png")
+    print("\nSaved plot: best_error_vs_pixels.png")
 
 
 if __name__ == "__main__":
