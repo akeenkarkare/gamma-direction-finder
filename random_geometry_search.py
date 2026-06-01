@@ -7,6 +7,7 @@ GRID_SIZE = 4
 N_PIXELS = 4
 N_RANDOM = 100
 RANDOM_SEED = 7
+LAMBDA_COMPACTNESS = 0.15
 
 
 def random_geometry(grid_size=GRID_SIZE, n_pixels=N_PIXELS):
@@ -29,6 +30,21 @@ def geometry_to_string(pixels):
 
     return "\n".join(rows)
 
+# a few more helper functions
+
+def bounding_box_area(pixels):
+    xs = pixels[:, 0]
+    ys = pixels[:, 1]
+
+    width = xs.max() - xs.min() + 1
+    height = ys.max() - ys.min() + 1
+
+    return width * height
+
+
+def compactness_score(mean_error, pixels):
+    area = bounding_box_area(pixels)
+    return mean_error + LAMBDA_COMPACTNESS * (area - N_PIXELS)
 
 def main():
     np.random.seed(RANDOM_SEED)
@@ -42,6 +58,8 @@ def main():
             "name": name,
             "pixels": pixels,
             "mean_error_deg": r["mean_error_deg"],
+            "area": bounding_box_area(pixels),
+            "score": compactness_score(r["mean_error_deg"], pixels),
             "kind": "known",
         })
 
@@ -54,10 +72,12 @@ def main():
             "name": f"random_{i}",
             "pixels": pixels,
             "mean_error_deg": r["mean_error_deg"],
+            "area": bounding_box_area(pixels),
+            "score": compactness_score(r["mean_error_deg"], pixels),
             "kind": "random",
         })
 
-    results = sorted(results, key=lambda x: x["mean_error_deg"])
+    results = sorted(results, key=lambda x: x["score"])
 
     print("\nTop 10 geometries")
     print("-" * 50)
@@ -87,6 +107,14 @@ def main():
     plt.tight_layout()
     plt.savefig("random_geometry_search.png", dpi=200)
     plt.show()
+
+    print(
+        f"\n#{rank}: {r['name']} | "
+        f"error={r['mean_error_deg']:.3f}° | "
+        f"area={r['area']} | "
+        f"score={r['score']:.3f} | "
+        f"{r['kind']}"
+    )
 
     print("\nSaved plot: random_geometry_search.png")
 
