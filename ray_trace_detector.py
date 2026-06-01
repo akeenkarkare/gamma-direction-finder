@@ -2,13 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 I0 = 10000
-MU_LEAD = 1.2
-NOISE = True
-
+MU_LEAD = 4.0
+LEAD_THICKNESS = 0.35
+RAYS_PER_PIXEL = 500
+NOISE = False
 PIXEL_SIZE = 1.0
-LEAD_THICKNESS = 0.15
 SOURCE_DISTANCE = 20.0
-RAYS_PER_PIXEL = 80
 
 GEOMETRY = np.array([
     [0, 0],
@@ -22,7 +21,7 @@ def normalize_pixels(pixels):
     return pixels - pixels.mean(axis=0)
 
 
-def ray_box_intersection_length(ray_origin, ray_dir, box_min, box_max):
+def ray_box_intersection_length(ray_origin, ray_dir, box_min, box_max, max_t):
     inv_dir = 1.0 / np.where(np.abs(ray_dir) < 1e-12, 1e-12, ray_dir)
 
     t1 = (box_min - ray_origin) * inv_dir
@@ -31,10 +30,13 @@ def ray_box_intersection_length(ray_origin, ray_dir, box_min, box_max):
     t_enter = np.maximum.reduce(np.minimum(t1, t2))
     t_exit = np.minimum.reduce(np.maximum(t1, t2))
 
-    if t_exit < max(t_enter, 0):
+    t_enter = max(t_enter, 0.0)
+    t_exit = min(t_exit, max_t)
+
+    if t_exit <= t_enter:
         return 0.0
 
-    return max(0.0, t_exit - max(t_enter, 0))
+    return t_exit - t_enter
 
 
 def make_boxes(pixels):
@@ -94,6 +96,10 @@ def make_boxes(pixels):
 
             lead_boxes.append((box_min, box_max))
 
+    lead_boxes.append((
+        np.array([-2.0, -2.0]),
+        np.array([-1.5,  2.0]),
+    ))
     return detector_boxes, lead_boxes
 
 
@@ -136,6 +142,7 @@ def detector_counts(theta, pixels):
                     ray_dir,
                     lead_min,
                     lead_max,
+                    ray_length,
                 )
 
             transmissions.append(np.exp(-MU_LEAD * lead_length))
