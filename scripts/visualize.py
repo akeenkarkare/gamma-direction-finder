@@ -1,13 +1,16 @@
+"""Draw the ray-traced detector, lead shielding, and sampled rays at fixed angles."""
+
+import _bootstrap  # noqa: F401
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ray_trace_detector import (
+from gammadf.raytrace import (
     GEOMETRY,
     make_boxes,
     sample_points_in_box,
     ray_box_intersection_length,
     SOURCE_DISTANCE,
-    RAYS_PER_PIXEL,
 )
 
 
@@ -131,8 +134,9 @@ def visualize_angle(theta_deg, n_rays_per_pixel=12):
     print("\nDifferences")
     print("-" * 40)
 
-    for i in range(4):
-        for j in range(i + 1, 4):
+    n = len(total_lengths)
+    for i in range(n):
+        for j in range(i + 1, n):
             print(
                 f"P{i+1}-P{j+1}: "
                 f"{abs(total_lengths[i] - total_lengths[j]):.4f}"

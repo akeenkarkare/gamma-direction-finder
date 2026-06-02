@@ -13,21 +13,27 @@ The idea: arrange a handful of detector pixels into a Tetris-like shape, place l
 
 Two forward models are implemented:
 
-- **Analytic toy model** (`main.py`, `benchmark_geometries.py`) — each pixel has a "shielding direction" and an attenuation that grows with the angle mismatch via `I = I₀·exp(-μ·x)`. Fast and simple.
-- **Ray-traced model** (`ray_trace_detector.py`) — explicitly builds 2D boxes for the detector pixels and the lead strips between adjacent pixels, samples many rays from the source to each pixel, and accumulates the lead path length through ray–box (slab) intersection. More physically faithful.
+- **Analytic model** (`gammadf/analytic.py`) — each pixel has a "shielding direction" and an attenuation that grows with the angle mismatch via `I = I₀·exp(-μ·x)`. Fast and simple.
+- **Ray-traced model** (`gammadf/raytrace.py`) — explicitly builds 2D boxes for the detector pixels and the lead strips between adjacent pixels, samples many rays from the source to each pixel, and accumulates the lead path length through ray–box (slab) intersection. More physically faithful.
 
-## Files
+## Project layout
 
-| File | Purpose |
-|------|---------|
-| `main.py` | Original analytic toy detector; generates `toy_detector_data.npz` and plots the angular response of an S-shape. |
-| `train_angle_model.py` | Trains the MLP on `toy_detector_data.npz` and reports mean angular error. |
-| `benchmark_geometries.py` | Analytic benchmark of the standard Tetris geometries (square, S, J, T, I) over repeated trials. |
-| `random_geometry_search.py` | Random search over 4/5/6-pixel geometries on a 5×5 grid, with a compactness penalty; finds the best shape per pixel count. Saves `best_error_vs_pixels.png`. |
-| `ray_trace_detector.py` | Ray-traced forward model: detector + lead boxes, ray–box intersection, per-pixel counts. |
-| `train_raytrace_model.py` | Trains the MLP on the ray-traced data and reports mean/median/max error plus worst predictions. |
-| `raytrace_benchmark.py` | Ray-traced benchmark across geometries; saves `raytrace_error_vs_angle.png`. |
-| `visualize_raytrace_angle.py` | Draws the detector, lead, source, and sampled rays for specific angles; saves `raytrace_angle_*.png`. |
+```
+gammadf/                  # library: importable modules, no side effects
+  common.py               # GEOMETRIES, angular-error metric, sin/cos encoding, MLP train/eval
+  analytic.py             # analytic forward model + dataset generator
+  raytrace.py             # ray-traced forward model + dataset generator
+scripts/                  # runnable entrypoints (each has a __main__)
+  generate_toy_data.py    # original toy detector; writes toy_detector_data.npz + response plot
+  train_angle.py          # train on the toy dataset; report mean angular error
+  train_raytrace.py       # train on the ray-traced data; report mean/median/max error
+  benchmark.py            # analytic benchmark of the standard Tetris geometries
+  raytrace_benchmark.py   # ray-traced benchmark; saves raytrace_error_vs_angle.png
+  search_geometries.py    # random search over 4/5/6-pixel shapes; saves best_error_vs_pixels.png
+  visualize.py            # draw detector, lead, source, and rays at fixed angles
+```
+
+The `scripts/` files put the repo root on `sys.path` (via `scripts/_bootstrap.py`) so they can `import gammadf` when run directly from anywhere.
 
 ## Setup
 
@@ -45,28 +51,30 @@ pip install numpy scikit-learn matplotlib
 
 ## Usage
 
+Run the scripts from the repo root:
+
 ```bash
 # 1. Generate the toy dataset and view the angular response
-python main.py
+python scripts/generate_toy_data.py
 
 # 2. Train a direction-finding model on the toy data
-python train_angle_model.py
+python scripts/train_angle.py
 
 # 3. Benchmark the standard Tetris geometries (analytic model)
-python benchmark_geometries.py
+python scripts/benchmark.py
 
 # 4. Search random geometries for the best direction-recovery shape
-python random_geometry_search.py
+python scripts/search_geometries.py
 
 # 5. Run the ray-traced pipeline
-python train_raytrace_model.py     # train + evaluate
-python raytrace_benchmark.py        # benchmark geometries
-python visualize_raytrace_angle.py  # visualize rays at fixed angles
+python scripts/train_raytrace.py        # train + evaluate
+python scripts/raytrace_benchmark.py    # benchmark geometries
+python scripts/visualize.py             # visualize rays at fixed angles
 ```
 
 ## Key parameters
 
-Most physics knobs live at the top of `ray_trace_detector.py`:
+Most physics knobs live at the top of `gammadf/raytrace.py`:
 
 - `I0` — incoming photon count
 - `MU_LEAD` — lead attenuation coefficient

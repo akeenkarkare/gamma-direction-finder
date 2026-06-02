@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 I0 = 10000
 MU_LEAD = 4.0
@@ -155,28 +154,17 @@ def detector_counts(theta, pixels):
     return np.array(counts)
 
 
-def main():
-    np.random.seed(42)
+def generate_dataset(pixels, n_angles=720, repeats=3):
+    """Build a (counts, angle) dataset by ray tracing the source around the array."""
+    angles = np.linspace(0, 2 * np.pi, n_angles, endpoint=False)
 
-    angles = np.linspace(0, 2 * np.pi, 360, endpoint=False)
-    data = np.array([detector_counts(theta, GEOMETRY) for theta in angles])
-    data_norm = data / data.sum(axis=1, keepdims=True)
+    X = []
+    theta = []
 
-    plt.figure(figsize=(8, 5))
+    for angle in angles:
+        for _ in range(repeats):
+            counts = detector_counts(angle, pixels)
+            X.append(counts / counts.sum())
+            theta.append(angle)
 
-    for i in range(data_norm.shape[1]):
-        plt.plot(np.degrees(angles), data_norm[:, i], label=f"Pixel {i + 1}")
-
-    plt.xlabel("Source angle (degrees)")
-    plt.ylabel("Fraction of total counts")
-    plt.title("Ray-Traced Detector Angular Response")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig("ray_traced_response.png", dpi=200)
-    plt.show()
-
-    print("Saved ray_traced_response.png")
-
-
-if __name__ == "__main__":
-    main()
+    return np.array(X), np.array(theta)

@@ -1,7 +1,10 @@
+import _bootstrap  # noqa: F401
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from benchmark_geometries import train_and_evaluate, GEOMETRIES
+from gammadf import GEOMETRIES
+from benchmark import evaluate_geometry as evaluate_known_geometry
 
 GRID_SIZE = 5
 N_PIXELS_LIST = [4, 5, 6]
@@ -47,7 +50,7 @@ def compactness_score(mean_error, pixels, n_pixels):
 
 
 def evaluate_geometry(name, pixels, kind, n_pixels):
-    r = train_and_evaluate(name, pixels)
+    r = evaluate_known_geometry(name, pixels)
 
     return {
         "name": name,
